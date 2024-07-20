@@ -12,13 +12,16 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const MagicNumber = 0x3bef5c
 
 var DefaultOption = &Option{
-	MagicNumber: MagicNumber,
-	CodecType:   codec.GobType,
+	MagicNumber:    MagicNumber,
+	CodecType:      codec.GobType,
+	ConnectTimeout: time.Second * 10,
+	HandleTimeout:  time.Second * 1,
 }
 var invalidRequest = struct{}{}
 
@@ -30,8 +33,10 @@ type request struct {
 }
 
 type Option struct {
-	MagicNumber int
-	CodecType   codec.Type
+	MagicNumber    int
+	CodecType      codec.Type
+	ConnectTimeout time.Duration
+	HandleTimeout  time.Duration
 }
 
 type methodType struct {
@@ -203,7 +208,7 @@ func (s *Server) serveCodec(codec codec.Codec) {
 			continue
 		}
 		wg.Add(1)
-		go s.handleRequest(codec, req, sending, wg)
+		go s.handleRequest(codec, req, sending, wg, DefaultOption.HandleTimeout)
 	}
 }
 
@@ -244,15 +249,38 @@ func (s *Server) sendResponse(cc codec.Codec, header *codec.Header, body any, mu
 	}
 
 }
-func (s *Server) handleRequest(cc codec.Codec, req *request, mutex *sync.Mutex, wg *sync.WaitGroup) {
+func (s *Server) handleRequest(cc codec.Codec, req *request, mutex *sync.Mutex, wg *sync.WaitGroup, timeout time.Duration) {
 	defer wg.Done()
-	err := req.svc.call(req.mtype, req.argv, req.reply)
-	if err != nil {
-		req.h.Error = err.Error()
-		s.sendResponse(cc, req.h, invalidRequest, mutex)
+	called := make(chan struct{})
+	sent := make(chan struct{})
+	go func() {
+		err := req.svc.call(req.mtype, req.argv, req.reply)
+		select {
+		case called <- struct{}{}:
+		default:
+			return
+		}
+		if err != nil {
+			req.h.Error = err.Error()
+			s.sendResponse(cc, req.h, invalidRequest, mutex)
+			sent <- struct{}{}
+			return
+		}
+		s.sendResponse(cc, req.h, req.reply.Interface(), mutex)
+		sent <- struct{}{}
+	}()
+	if timeout == 0 {
+		<-called
+		<-sent
+		return
 	}
-	s.sendResponse(cc, req.h, req.reply.Interface(), mutex)
-
+	select {
+	case <-time.After(timeout):
+		req.h.Error = "rpc server: request handle timeout"
+		s.sendResponse(cc, req.h, invalidRequest, mutex)
+	case <-called:
+		<-sent
+	}
 }
 
 func (s *Server) Accept(listener net.Listener) {
