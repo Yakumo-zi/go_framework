@@ -9,23 +9,20 @@ type Server interface {
 	//method HTTP方法
 	//path 路由路径
 	//handleFunc 业务逻辑
-	AddRoute(method string, path string, handleFunc HandleFunc)
+	addRoute(method string, path string, handleFunc HandleFunc)
 	Start(addr string)
 }
 
 var _ Server = (*HTTPServer)(nil)
 
 type HTTPServer struct {
+	router
 	addr string
-}
-
-func (h *HTTPServer) AddRoute(method string, path string, handleFunc HandleFunc) {
-	panic("unimplemented")
 }
 
 // Get 基于AddRoute的衍生方法
 func (h *HTTPServer) Get(path string, handleFunc HandleFunc) {
-	h.AddRoute(http.MethodGet, "", handleFunc)
+	h.addRoute(http.MethodGet, "", handleFunc)
 }
 
 func (h *HTTPServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
