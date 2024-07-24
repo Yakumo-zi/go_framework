@@ -143,7 +143,7 @@ func TestAddRoute(t *testing.T) {
 				wanted[i].trees[tc.method].print("")
 			}
 		} else {
-			assert.Panics(t, func() { r.addRoute(tc.method, tc.path, handleFunc) }, "Panic")
+			assert.Panics(t, func() { r.addRoute(tc.method, tc.path, handleFunc) })
 		}
 		t.Logf("Test case %d passed", i)
 	}
@@ -222,6 +222,124 @@ func TestAddRoutes(t *testing.T) {
 	} else {
 		t.Logf("Test case passed")
 	}
+}
+
+func TestFindNode(t *testing.T) {
+	mock := []struct {
+		method string
+		path   string
+	}{
+		{"GET", "/"},
+		{"GET", "/users"},
+		{"GET", "/users/:id"},
+		{"DELETE", "/users/:id"},
+		{"PUT", "/goods/:id/:action"},
+		{"PUT", "/users/*"},
+		{"DELETE", "/users/:id/*"},
+		{"OPTION", "/users/(123)"},
+	}
+	testCase := []struct {
+		method string
+		path   string
+	}{
+		{"GET", "/"},
+		{"GET", "/users"},
+		{"GET", "/users/123"},
+		{"DELETE", "/users/123"},
+		{"PUT", "/users/123"},
+		{"DELETE", "/users/123/"},
+		{"DELETE", "/users/123/132131/gdggag"},
+		{"PUT", "/users/123/ststa/ggda/jjjj"},
+		{"PUT", "/goods/123/action"},
+		{"OPTION", "/users/123"},
+	}
+	handleFunc := func(*Context) {}
+	wanted := []*matchInfo{
+		{
+			hanleFunc: handleFunc,
+		},
+		{
+			hanleFunc: handleFunc,
+		},
+		{
+			hanleFunc: handleFunc,
+			params: map[string]string{
+				"id": "123",
+			},
+		},
+		{
+			hanleFunc: handleFunc,
+			params: map[string]string{
+				"id": "123",
+			},
+		},
+		{
+			hanleFunc: handleFunc,
+		},
+		{
+			hanleFunc: handleFunc,
+			params: map[string]string{
+				"id": "123",
+			},
+		},
+		{
+			params: map[string]string{
+				"id": "123",
+			},
+			hanleFunc: handleFunc,
+		},
+		{
+			hanleFunc: handleFunc,
+		},
+		{
+			hanleFunc: handleFunc,
+			params: map[string]string{
+				"id":     "123",
+				"action": "action",
+			},
+		},
+		{
+			hanleFunc: handleFunc,
+		},
+	}
+	r := NewRouter()
+	for _, tc := range mock {
+		r.addRoute(tc.method, tc.path, handleFunc)
+	}
+	for i, tc := range testCase {
+		matchInfo, err := r.findNode(tc.method, tc.path)
+		if err != nil {
+			t.Errorf("Test case %d failed", i)
+			continue
+		}
+		if !matchInfo.equal(wanted[i]) {
+			fmt.Printf("matchInfo: %v\n", matchInfo)
+			t.Errorf("Test case %d failed equal", i)
+			continue
+		}
+		t.Logf("Test case %d passed", i)
+	}
+}
+func (m *matchInfo) equal(y *matchInfo) bool {
+	mHandleFunc := reflect.ValueOf(m.hanleFunc)
+	yHandleFunc := reflect.ValueOf(y.hanleFunc)
+	if mHandleFunc != yHandleFunc {
+		return false
+	}
+
+	if len(m.params) != len(y.params) {
+		return false
+	}
+	for k, v := range m.params {
+		if yv, ok := y.params[k]; !ok {
+			return false
+		} else {
+			if v != yv {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (r *router) equal(y *router) bool {
