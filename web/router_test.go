@@ -233,10 +233,11 @@ func TestFindNode(t *testing.T) {
 		{"GET", "/users"},
 		{"GET", "/users/:id"},
 		{"DELETE", "/users/:id"},
+		{"DELETE", "/users/:id/*"},
 		{"PUT", "/goods/:id/:action"},
 		{"PUT", "/users/*"},
-		{"DELETE", "/users/:id/*"},
 		{"OPTION", "/users/(123)"},
+		{"OPTION", "/users/(123)/*"},
 	}
 	testCase := []struct {
 		method string
@@ -246,60 +247,114 @@ func TestFindNode(t *testing.T) {
 		{"GET", "/users"},
 		{"GET", "/users/123"},
 		{"DELETE", "/users/123"},
-		{"PUT", "/users/123"},
 		{"DELETE", "/users/123/"},
 		{"DELETE", "/users/123/132131/gdggag"},
+		{"PUT", "/users/123"},
 		{"PUT", "/users/123/ststa/ggda/jjjj"},
 		{"PUT", "/goods/123/action"},
 		{"OPTION", "/users/123"},
+		{"OPTION", "/users/123/321313gfag/fdafda"},
 	}
 	handleFunc := func(*Context) {}
 	wanted := []*matchInfo{
 		{
-			hanleFunc: handleFunc,
+			node: &node{path: "/",
+				handleFunc: handleFunc,
+				children: map[string]*node{
+					"users": {
+						path:       "users",
+						handleFunc: handleFunc,
+						paramChild: &node{
+							path:       ":id",
+							handleFunc: handleFunc,
+						},
+					},
+				},
+			},
 		},
 		{
-			hanleFunc: handleFunc,
+			node: &node{
+				path:       "users",
+				handleFunc: handleFunc,
+				paramChild: &node{
+					path:       ":id",
+					handleFunc: handleFunc,
+				},
+			},
 		},
 		{
-			hanleFunc: handleFunc,
+			node: &node{
+				path:       ":id",
+				handleFunc: handleFunc,
+			},
 			params: map[string]string{
 				"id": "123",
 			},
 		},
 		{
-			hanleFunc: handleFunc,
+			node: &node{
+				path:       ":id",
+				handleFunc: handleFunc,
+				starChild: &node{
+					path:       "*",
+					handleFunc: handleFunc,
+				},
+			},
 			params: map[string]string{
 				"id": "123",
 			},
 		},
 		{
-			hanleFunc: handleFunc,
-		},
-		{
-			hanleFunc: handleFunc,
+			node: &node{
+				path:       "*",
+				handleFunc: handleFunc,
+			},
 			params: map[string]string{
 				"id": "123",
 			},
 		},
 		{
+			node: &node{
+				path:       "*",
+				handleFunc: handleFunc,
+			},
 			params: map[string]string{
 				"id": "123",
 			},
-			hanleFunc: handleFunc,
 		},
 		{
-			hanleFunc: handleFunc,
+			node: &node{
+				path:       "*",
+				handleFunc: handleFunc,
+			},
 		},
 		{
-			hanleFunc: handleFunc,
+			node: &node{
+				path:       "*",
+				handleFunc: handleFunc,
+			},
+		},
+		{
+			node: &node{
+				path:       ":action",
+				handleFunc: handleFunc,
+			},
 			params: map[string]string{
 				"id":     "123",
 				"action": "action",
 			},
 		},
 		{
-			hanleFunc: handleFunc,
+			node: &node{
+				path:       "(123)",
+				handleFunc: handleFunc,
+			},
+		},
+		{
+			node: &node{
+				path:       "(123)",
+				handleFunc: handleFunc,
+			},
 		},
 	}
 	r := NewRouter()
@@ -313,7 +368,7 @@ func TestFindNode(t *testing.T) {
 			continue
 		}
 		if !matchInfo.equal(wanted[i]) {
-			fmt.Printf("matchInfo: %v\n", matchInfo)
+			fmt.Printf("matchInfo: %+v,node:%+v\n", matchInfo, matchInfo.node)
 			t.Errorf("Test case %d failed equal", i)
 			continue
 		}
@@ -321,12 +376,9 @@ func TestFindNode(t *testing.T) {
 	}
 }
 func (m *matchInfo) equal(y *matchInfo) bool {
-	mHandleFunc := reflect.ValueOf(m.hanleFunc)
-	yHandleFunc := reflect.ValueOf(y.hanleFunc)
-	if mHandleFunc != yHandleFunc {
+	if !m.node.equal(y.node) {
 		return false
 	}
-
 	if len(m.params) != len(y.params) {
 		return false
 	}

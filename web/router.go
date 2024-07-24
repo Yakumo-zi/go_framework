@@ -16,8 +16,8 @@ type node struct {
 }
 
 type matchInfo struct {
-	params    map[string]string
-	hanleFunc HandleFunc
+	params map[string]string
+	node   *node
 }
 
 type router struct {
@@ -61,7 +61,7 @@ func (r *router) findNode(method, path string) (*matchInfo, error) {
 	}
 	if path == "/" {
 		return &matchInfo{
-			hanleFunc: root.handleFunc,
+			node: root,
 		}, nil
 	}
 	matchInfo := &matchInfo{
@@ -98,7 +98,7 @@ func (r *router) findNode(method, path string) (*matchInfo, error) {
 		}
 		root = ret
 	}
-	matchInfo.hanleFunc = root.handleFunc
+	matchInfo.node = root
 	return matchInfo, nil
 }
 
