@@ -352,7 +352,7 @@ func TestFindNode(t *testing.T) {
 		},
 		{
 			node: &node{
-				path:       "(123)",
+				path:       "*",
 				handleFunc: handleFunc,
 			},
 		},
